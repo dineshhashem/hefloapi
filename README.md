@@ -1,2 +1,2 @@
 # hefloapi
-Simple api to integrate with HEFLO
+Use this repository to PHP: https://github.com/dineshhashem/heflophpapi
