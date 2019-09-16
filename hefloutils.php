@@ -1,8 +1,9 @@
 <?php
 $GLOBALS["records"] = array();
 $GLOBALS["metadata"] = array();
+$GLOBALS["region"] = 'sa-east-1';
 
-function ObtemToken($key, $secret) 
+function GetToken($key, $secret) 
 {
 	$headers = array(
 			'Accept' => 'application/json, text/javascript, */*; q=0.01',
@@ -195,7 +196,7 @@ function GetRecord($uid, $classoid, $domain, $token, $withmetadata)
 	$headers[] = 'User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:66.0) Gecko/20100101 Firefox/66.0';
 	$headers[] = 'Accept: application/json';
 	$headers[] = 'Accept-Language: pt-BR';
-	$headers[] = 'Referer: https://app.heflo.com/Workspace/companies';
+	$headers[] = 'Referer: https://app.heflo.com/Workspace/Home';
 	$headers[] = 'Content-Type: application/json';
 	$headers[] = 'Authorization: Bearer '. $token;
 	$headers[] = 'Currentdomain: '. $domain;
@@ -246,25 +247,25 @@ function GetRecord($uid, $classoid, $domain, $token, $withmetadata)
 		else {
 			$data[$meta->Text] = array();
 			$datalist = GetRecordList($domain, $classoid, $ret->Oid, $meta->ListEntityName, $token);
-			foreach ($datalist as $registro)
+			foreach ($datalist as $record)
 			{
-				$reg = new stdClass();
-				if (isset($registro->Oid))
-					$reg->Oid = $registro->Oid;
+				$rec = new stdClass();
+				if (isset($record->Oid))
+					$rec->Oid = $record->Oid;
 				foreach ($meta->Items as $metaitem)
 				{
 					if (strrpos($metaitem->Type, "Heflo.Custom") !== false)
 					{
-						$uidint = $registro->{$metaitem->Uid.'Oid'};
+						$uidint = $record->{$metaitem->Uid.'Oid'};
 						$classoidint = str_replace("Heflo.Custom.ce_", "", $metaitem->Type);
-						$reg->{$metaitem->Text} = GetRecord($uidint, $classoidint, $domain, $token, $withmetadata);
+						$rec->{$metaitem->Text} = GetRecord($uidint, $classoidint, $domain, $token, $withmetadata);
 					}
 					else if ($metaitem->Type != "HEFLO.RecordList")
 					{
-						$reg->{$metaitem->Text} = $registro->{$metaitem->Uid};
+						$rec->{$metaitem->Text} = $record->{$metaitem->Uid};
 					}
 				}
-				array_push($data[$meta->Text], $reg);
+				array_push($data[$meta->Text], $rec);
 			}
 		}
 	}
@@ -278,7 +279,7 @@ function GetRecord($uid, $classoid, $domain, $token, $withmetadata)
 function GetWorkitem($workitemnumber, $domain, $token, $withmetadata)
 {
 	$ch = curl_init();
-	curl_setopt($ch, CURLOPT_URL, 'https://sa-east-1-prod-data.heflo.com/WorkItem?$filter=Number%20eq%20'. $workitemnumber .'&$selectCustom=true');
+	curl_setopt($ch, CURLOPT_URL, 'https://'. $GLOBALS['region'] .'-prod-data.heflo.com/WorkItem?$filter=Number%20eq%20'. $workitemnumber .'&$selectCustom=true');
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 	curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
 	curl_setopt($ch, CURLOPT_ENCODING, 'gzip, deflate');
@@ -340,23 +341,25 @@ function GetWorkitem($workitemnumber, $domain, $token, $withmetadata)
 		else {
 			$data[$meta->Text] = array();
 			$datalist = GetRecordList($domain, null, $ret->Oid, $meta->ListEntityName, $token);
-			foreach ($datalist as $registro)
+			foreach ($datalist as $record)
 			{
-				$reg = new stdClass();
+				$rec = new stdClass();
+				if (isset($record->Oid))
+					$rec->Oid = $record->Oid;
 				foreach ($meta->Items as $metaitem)
 				{
 					if (strrpos($metaitem->Type, "Heflo.Custom") !== false)
 					{
-						$uidint = $registro->{$metaitem->Uid.'Oid'};
+						$uidint = $record->{$metaitem->Uid.'Oid'};
 						$classoidint = str_replace("Heflo.Custom.ce_", "", $metaitem->Type);
-						$reg->{$metaitem->Text} = GetRecord($uidint, $classoidint, $domain, $token, $withmetadata);
+						$rec->{$metaitem->Text} = GetRecord($uidint, $classoidint, $domain, $token, $withmetadata);
 					}
 					else if ($metaitem->Type != "HEFLO.RecordList")
 					{
-						$reg->{$metaitem->Text} = $registro->{$metaitem->Uid};
+						$rec->{$metaitem->Text} = $record->{$metaitem->Uid};
 					}
 				}
-				array_push($data[$meta->Text], $reg);
+				array_push($data[$meta->Text], $rec);
 			}
 		}
 	}
