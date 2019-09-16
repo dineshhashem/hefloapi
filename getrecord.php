@@ -5,35 +5,34 @@ include "hefloutils.php";
 $json = file_get_contents('php://input');
 $obj  = json_decode($json, true);
 
-$token = ObtemToken($_GET['login'],$_GET['pwd']);
+$token = GetToken($_GET['login'],$_GET['pwd']);
 $returnmetadata = false;
 if (isset($_GET['withmetadata']))
     $returnmetadata = $_GET['withmetadata'] == 'true';
 
-$mensagemerro = null;
+$error = null;
 $classoid = null;
 if (isset($_GET['classoid']))
     $classoid = $_GET['classoid'];
 else if (isset($_GET['name']))
 {
-    $metadados = ObtemTodoMetadata($_GET['domain'], $token);
+    $metadata = GetAllMetadata($_GET['domain'], $token);
     $arr = array();
-    foreach ($metadados as $item)
+    foreach ($metadata as $item)
 	{
 		if ($item->Text == $_GET['name'])
-		{
             array_push($arr, $item->Oid);
-        }
     }
+    
     if (count($arr) == 1)
         $classoid = $arr[0];
     else if (count($arr) == 0)
-        $mensagemerro = "Não foi possível encontrar uma classe chamada ".  $_GET['name'];
+        $error = "Could not find a class named '".  $_GET['name'] ."'";
     else if (count($arr) > 1)
-        $mensagemerro = "Existe mais de uma classe ".  $_GET['name'] .". Opte por fornecer o parâmetro classoid";
+        $error = "There is more than one class named ".  $_GET['name'] ."'. Choose to provide the parameter classoid.";
 }
 
-if ($mensagemerro == null)
+if ($error == null)
 {
     $rec = GetRecord($_GET['oid'], $classoid, $_GET['domain'], $token, $returnmetadata);
     $jsonheflo = new StdClass();
@@ -42,7 +41,7 @@ if ($mensagemerro == null)
 }
 else
 {
-    $jsonheflo->erro = $mensagemerro;
+    $jsonheflo->error = $error;
     echo json_encode($jsonheflo);
 }
 ?>
