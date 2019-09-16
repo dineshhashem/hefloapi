@@ -19,14 +19,14 @@ function ObtemToken($key, $secret)
 	curl_setopt($ch, CURLOPT_POSTFIELDS, "grant_type=client_credentials&client_id=$key&client_secret=$secret");
 	curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 	curl_setopt($ch, CURLOPT_URL, 'https://auth.heflo.com/token');
-	$retorno = curl_exec($ch);
+	$return = curl_exec($ch);
 	curl_close($ch);
 	sleep(0.05);
-	$retjson = json_decode($retorno);
+	$retjson = json_decode($return);
 	return $retjson->access_token;
 }
 
-function ObtemTodoMetadata($domain, $token)
+function GetAllMetadata($domain, $token)
 {
 	$ch = curl_init();
 	curl_setopt($ch, CURLOPT_URL, 'https://auth.heflo.com/odata/Class/DataServiceControllers.GetCustomMetadata?buildFullMetadata=false');
@@ -48,7 +48,7 @@ function ObtemTodoMetadata($domain, $token)
 	
 	$result = curl_exec($ch);
 	if (curl_errno($ch)) {
-		echo 'ObtemMetadadosCadastro Error:' . curl_error($ch);
+		echo 'GetMetadataRecord Error:' . curl_error($ch);
 	}
 	curl_close ($ch);
 	sleep(0.05);
@@ -56,7 +56,7 @@ function ObtemTodoMetadata($domain, $token)
 }
 
 $GLOBALS["cachemetadata"] = null;
-function ObtemMetadadosCadastro($domain, $classoid, $token)
+function GetMetadataRecord($domain, $classoid, $token)
 {
 	if (isset($GLOBALS["metadata"][$classoid]) && $GLOBALS["metadata"][$classoid] != null)
 		return $GLOBALS["metadata"][$classoid];
@@ -64,7 +64,7 @@ function ObtemMetadadosCadastro($domain, $classoid, $token)
 	$json = null;
 	if ($GLOBALS["cachemetadata"] == null)
 	{
-		$json = ObtemTodoMetadata($domain, $token);
+		$json = GetAllMetadata($domain, $token);
 		$GLOBALS["cachemetadata"] = $json;
 	}
 	else
@@ -88,8 +88,8 @@ function ObtemMetadadosCadastro($domain, $classoid, $token)
 					{
 						$meta->ListEntityName = $prop->ListEntityName;
 						$meta->Items = array();
-						$metadadoslist = ObtemMetadadosListaRegistros($json, $meta->ListEntityName);
-						foreach ($metadadoslist as $metaitem)
+						$metadatalist = GetMetadataRecordList($json, $meta->ListEntityName);
+						foreach ($metadatalist as $metaitem)
 						{
 							$metaprop = new stdClass();
 							$metaprop->Text = $metaitem->Text;
@@ -116,19 +116,19 @@ function ObtemMetadadosCadastro($domain, $classoid, $token)
 	return $props;
 }
 
-function ObtemMetadadosListaRegistros($metadados, $metaid)
+function GetMetadataRecordList($metadata, $metaid)
 {
 	if (isset($GLOBALS["metadatalist"][$metaid]) && $GLOBALS["metadatalist"][$metaid] != null)
 		return $GLOBALS["metadatalist"][$metaid];
 
 	$props = array();
-	foreach ($metadados as $item)
+	foreach ($metadata as $item)
 	{
 		if ($item->Oid == $metaid)
 		{
 			foreach ($item->Properties as $prop)
 			{
-				if (isset($prop->Text) && strlen($prop->Text) > 0) // && strlen($prop->AssociatedClassOid) > 0)
+				if (isset($prop->Text) && strlen($prop->Text) > 0)
 				{
 					$meta = new stdClass();
 					$meta->Text = $prop->Text;
@@ -145,7 +145,7 @@ function ObtemMetadadosListaRegistros($metadados, $metaid)
 	return $props;
 }
 
-function ObtemDadosListaRegistros($domain, $classoid, $uid, $listentityoid, $token)
+function GetRecordList($domain, $classoid, $uid, $listentityoid, $token)
 {
 	$ch = curl_init();
 	curl_setopt($ch, CURLOPT_URL, "https://auth.heflo.com/odata/CustomProperty/DataServiceControllers.GetListData?classOid=$classoid&instanceOid=$uid&entityOid=$listentityoid&count=true");
@@ -171,7 +171,7 @@ function ObtemDadosListaRegistros($domain, $classoid, $uid, $listentityoid, $tok
 	
 	$result = curl_exec($ch);
 	if (curl_errno($ch)) {
-		echo 'ObtemDadosListaRegistros Error:' . curl_error($ch);
+		echo 'GetRecordList Error:' . curl_error($ch);
 	}
 	curl_close ($ch);
 	sleep(0.05);
@@ -217,16 +217,16 @@ function GetRecord($uid, $classoid, $domain, $token, $withmetadata)
 		return null;
 	}
 
-	$dados = array();
+	$data = array();
 
-	$metadados = ObtemMetadadosCadastro($domain, $classoid, $token);
+	$metadata = GetMetadataRecord($domain, $classoid, $token);
 	
-	foreach ($metadados as $meta)
+	foreach ($metadata as $meta)
 	{
 		if (strrpos($meta->Type, "Venki.") !== false)
 		{
 			if (isset($ret->{$meta->Uid.'Oid'}))
-				$dados[$meta->Text] = $ret->{$meta->Uid.'Oid'};
+				$data[$meta->Text] = $ret->{$meta->Uid.'Oid'};
 		}
 		else if (strrpos($meta->Type, "Heflo.Custom") !== false)
 		{
@@ -235,18 +235,18 @@ function GetRecord($uid, $classoid, $domain, $token, $withmetadata)
 				$uidint = $ret->{$meta->Uid.'Oid'};
 				$classoidint = str_replace("Heflo.Custom.ce_", "", $meta->Type);
 				if ($uidint != null)
-					$dados[$meta->Text] = GetRecord( $uidint, $classoidint, $domain, $token, $withmetadata);
+					$data[$meta->Text] = GetRecord( $uidint, $classoidint, $domain, $token, $withmetadata);
 			}
 		}
 		else if ($meta->Type != "HEFLO.RecordList")
 		{
 			if (isset($ret->{$meta->Uid}))
-				$dados[$meta->Text] = $ret->{$meta->Uid};
+				$data[$meta->Text] = $ret->{$meta->Uid};
 		}
 		else {
-			$dados[$meta->Text] = array();
-			$dadoslista = ObtemDadosListaRegistros($domain, $classoid, $ret->Oid, $meta->ListEntityName, $token);
-			foreach ($dadoslista as $registro)
+			$data[$meta->Text] = array();
+			$datalist = GetRecordList($domain, $classoid, $ret->Oid, $meta->ListEntityName, $token);
+			foreach ($datalist as $registro)
 			{
 				$reg = new stdClass();
 				if (isset($registro->Oid))
@@ -264,15 +264,15 @@ function GetRecord($uid, $classoid, $domain, $token, $withmetadata)
 						$reg->{$metaitem->Text} = $registro->{$metaitem->Uid};
 					}
 				}
-				array_push($dados[$meta->Text], $reg);
+				array_push($data[$meta->Text], $reg);
 			}
 		}
 	}
 	if ($withmetadata)
-		$dados["metadata"] = $metadados;
-	$GLOBALS["records"]["$uid|$classoid"] = $dados;
+		$data["metadata"] = $metadata;
+	$GLOBALS["records"]["$uid|$classoid"] = $data;
 
-	return $dados;
+	return $data;
 }
 
 function GetWorkitem($workitemnumber, $domain, $token, $withmetadata)
@@ -306,21 +306,21 @@ function GetWorkitem($workitemnumber, $domain, $token, $withmetadata)
 		
 	$ret = $ret->value[0];
 	
-	$dados = array();
+	$data = array();
 	$vars = get_object_vars ($ret);
 	foreach($vars as $key=>$value) {
 		if (strpos($key, 'cp_') === false)
-			$dados[$key] = $ret->{$key}; 
+			$data[$key] = $ret->{$key}; 
 	}
 
-	$metadados = ObtemMetadadosCadastro($domain, "WorkItem", $token);
+	$metadata = GetMetadataRecord($domain, "WorkItem", $token);
 	
-	foreach ($metadados as $meta)
+	foreach ($metadata as $meta)
 	{
 		if (strrpos($meta->Type, "Venki.") !== false)
 		{
 			if (isset($ret->{$meta->Uid.'Oid'}))
-				$dados[$meta->Text] = $ret->{$meta->Uid.'Oid'};
+				$data[$meta->Text] = $ret->{$meta->Uid.'Oid'};
 		}
 		else if (strrpos($meta->Type, "Heflo.Custom") !== false)
 		{
@@ -329,18 +329,18 @@ function GetWorkitem($workitemnumber, $domain, $token, $withmetadata)
 				$uidint = $ret->{$meta->Uid.'Oid'};
 				$classoidint = str_replace("Heflo.Custom.ce_", "", $meta->Type);
 				if ($uidint != null)
-					$dados[$meta->Text] = GetRecord( $uidint, $classoidint, $domain, $token, $withmetadata);
+					$data[$meta->Text] = GetRecord( $uidint, $classoidint, $domain, $token, $withmetadata);
 			}
 		}
 		else if ($meta->Type != "HEFLO.RecordList")
 		{
 			if (isset($ret->{$meta->Uid}))
-				$dados[$meta->Text] = $ret->{$meta->Uid};
+				$data[$meta->Text] = $ret->{$meta->Uid};
 		}
 		else {
-			$dados[$meta->Text] = array();
-			$dadoslista = ObtemDadosListaRegistros($domain, null, $ret->Oid, $meta->ListEntityName, $token);
-			foreach ($dadoslista as $registro)
+			$data[$meta->Text] = array();
+			$datalist = GetRecordList($domain, null, $ret->Oid, $meta->ListEntityName, $token);
+			foreach ($datalist as $registro)
 			{
 				$reg = new stdClass();
 				foreach ($meta->Items as $metaitem)
@@ -356,13 +356,13 @@ function GetWorkitem($workitemnumber, $domain, $token, $withmetadata)
 						$reg->{$metaitem->Text} = $registro->{$metaitem->Uid};
 					}
 				}
-				array_push($dados[$meta->Text], $reg);
+				array_push($data[$meta->Text], $reg);
 			}
 		}
 	}
 	if ($withmetadata)
-		$dados["metadata"] = $metadados;
+		$data["metadata"] = $metadata;
 
-	return $dados;
+	return $data;
 }
 ?>
