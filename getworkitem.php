@@ -5,7 +5,7 @@ include "hefloutils.php";
 $json = file_get_contents('php://input');
 $obj  = json_decode($json, true);
 
-$token = ObtemToken($_GET['login'],$_GET['pwd']);
+$token = GetToken($_GET['login'],$_GET['pwd']);
 $returnmetadata = false;
 if (isset($_GET['withmetadata']))
     $returnmetadata = $_GET['withmetadata'] == 'true';
